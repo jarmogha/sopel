@@ -1,14 +1,25 @@
 import requests
 import json
 from sopel.module import commands, example, NOLIMIT
-from HTMLParser import HTMLParser
 import re
 import random
 from string import punctuation
+import sys
+if sys.version_info.major >= 3:
+    unicode = str
+    if sys.version_info.minor >= 4:
+        from html import unescape
+    else:
+        from html.parser import HTMLParser
+        unescape = HTMLParser().unescape
+else:
+    from HTMLParser import HTMLParser
+    unescape = HTMLParser().unescape
 
 '''
-Python 2.7
+Python 2.7, with Python 3 hooks for unescape
 Based on https://github.com/dasu/syrup-sopel-modules/blob/master/trivia.py
+Python 3 unescape hook from : sopel/sopel/modules/reddit.py
 '''
 
 @commands('trivia', 'tt')
@@ -27,7 +38,7 @@ def trivia_answer(bot, trigger):
     check_values(bot, trigger.nick)
     guess = trigger.group(2)
     answer = bot.db.get_nick_value(bot.nick, 'trivia_answer')
-    if answer: answer = answer.lower()
+    if answer: answer = answer.lstrip().rstrip().lower()
     if guess: guess = guess.lstrip().rstrip().lower()
     if guess == "help?": bot.say("? for hint, ??? for answer")
     elif not answer: bot.say("You need to ask a question!")
@@ -85,11 +96,11 @@ def get_trivia(bot):
     if data['response_code'] != 0:
         bot.say("Error getting question, sorry.")
     g_question = data["results"][0]
-    answer = HTMLParser().unescape(g_question["correct_answer"]).lower()
+    answer = unescape(g_question["correct_answer"]).lower()
     old_answer = bot.db.get_nick_value(bot.nick, 'trivia_answer')
     if old_answer: bot.say("The previous answer was: %s" % (old_answer))
     bot.db.set_nick_value(bot.nick, 'trivia_answer', answer)
-    question = HTMLParser().unescape(g_question["question"])
+    question = unescape(g_question["question"])
     bot.db.set_nick_value(bot.nick, 'trivia_question', question)
     starred_answer = re.sub('[a-zA-Z0-9]', '*', answer)
     bot.say("Question: %s" % (question))
