@@ -20,6 +20,8 @@ else:
 Python 2.7, with Python 3 hooks for unescape
 Based on https://github.com/dasu/syrup-sopel-modules/blob/master/trivia.py
 Python 3 unescape hook from : sopel/sopel/modules/reddit.py
+Module stores Q/A to db with bot.nick. May not be the best for bots in multiple channels.
+v1.1
 '''
 
 @commands('trivia', 'tt')
@@ -64,7 +66,7 @@ def trivia_answer(bot, trigger):
         bot.say(answer)
         bot.db.set_nick_value(bot.nick, 'trivia_answer', None)
         gives = bot.db.get_nick_value(trigger.nick, 'trivia_gives')
-        bot.db.set_nick_value(trigger.nick, 'trivia_score', gives + 1)
+        bot.db.set_nick_value(trigger.nick, 'trivia_gives', gives + 1)
         if bot.db.get_nick_value(bot.nick, 'trivia_status'): get_trivia(bot)
     elif guess.lower() == answer:
         bot.say("Correct!")
@@ -80,14 +82,17 @@ def trivia_answer(bot, trigger):
 
 @commands('score')
 def trivia_score(bot, trigger):
+    if trigger.group(2) and (len(trigger.group(2)) > 20): return
     if not trigger.group(2): nick = trigger.nick
     else: nick = trigger.group(2).lstrip().rstrip()
-    check_values(bot, nick)
-    score = bot.db.get_nick_value(nick, 'trivia_score')
-    wrong = bot.db.get_nick_value(nick, 'trivia_wrong')
-    hints = bot.db.get_nick_value(nick, 'trivia_hints')
-    gives = bot.db.get_nick_value(nick, 'trivia_gives')
-    bot.say("%s has %d points, has had %d wrong answers, has used %d hints, and given up %d times!" % (nick, score, wrong, hints, gives))
+    if not bot.db.get_nick_value(nick, 'trivia_score'): bot.say("No Score")
+    else:
+        check_values(bot, nick)
+        score = bot.db.get_nick_value(nick, 'trivia_score')
+        wrong = bot.db.get_nick_value(nick, 'trivia_wrong')
+        hints = bot.db.get_nick_value(nick, 'trivia_hints')
+        gives = bot.db.get_nick_value(nick, 'trivia_gives')
+        bot.say("%s has %d points, has had %d wrong answers, has used %d hints, and given up %d times!" % (nick, score, wrong, hints, gives))
 
 def get_trivia(bot):
     header =  {"User-Agent": "Syrup/1.0"}
