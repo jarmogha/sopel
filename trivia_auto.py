@@ -21,7 +21,8 @@ Python 2.7, with Python 3 hooks for unescape
 Based on https://github.com/dasu/syrup-sopel-modules/blob/master/trivia.py
 Python 3 unescape hook from : sopel/sopel/modules/reddit.py
 Module stores Q/A to db with bot.nick. May not be the best for bots in multiple channels.
-v1.1
+v 1.1: Fixed Score Clear Bug
+v 1.2: .tt doesn't advance if there is a QA stored.
 '''
 
 @commands('trivia', 'tt')
@@ -33,6 +34,9 @@ def trivia(bot, trigger):
         get_trivia(bot)
     elif trigger.group(2) == "off": 
         bot.db.set_nick_value(bot.nick, 'trivia_status', False)
+    elif bot.db.get_nick_value(bot.nick, 'trivia_answer'):
+        bot.say("Question: %s" % (bot.db.get_nick_value(bot.nick, 'trivia_question')))
+        bot.say("Answer: %s" % (re.sub('[a-zA-Z0-9]', '*', (bot.db.get_nick_value(bot.nick, 'trivia_answer')))))
     else: get_trivia(bot)
 
 @commands('answer', 'a')
