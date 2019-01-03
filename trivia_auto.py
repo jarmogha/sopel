@@ -3,6 +3,7 @@ import json
 from sopel.module import commands, example, NOLIMIT
 import re
 import random
+from random import shuffle
 from string import punctuation
 import sys
 if sys.version_info.major >= 3:
@@ -21,9 +22,12 @@ Python 2.7, with Python 3 hooks for unescape
 Based on https://github.com/dasu/syrup-sopel-modules/blob/master/trivia.py
 Python 3 unescape hook from : sopel/sopel/modules/reddit.py
 Module stores Q/A to db with bot.nick. May not be the best for bots in multiple channels.
+Special characters should be stripped from answers.
+Jeopardy answers sometimes have <i> </i> that should be stripped out.
 v 1.1: Fixed Score Clear Bug
 v 1.2: .tt doesn't advance if there is a QA stored.
-v 1.3 : Added Jeopardy db from https://github.com/dasu/syrup-sopel-modules/blob/master/jeopardy.py
+v 1.3: Added Jeopardy db from https://github.com/dasu/syrup-sopel-modules/blob/master/jeopardy.py
+v 1.4: Added .a options? to give possible answers. Removed initial hint from trivia .
 '''
 
 @commands('trivia', 'tt')
@@ -31,12 +35,12 @@ def trivia(bot, trigger):
     if not bot.db.get_nick_value(bot.nick, 'trivia_status'): bot.db.set_nick_value(bot.nick, 'trivia_status', False)
     if trigger.group(2) == "on":
         bot.db.set_nick_value(bot.nick, 'trivia_status', True)
-        bot.say("? for hint, ??? for answer")
+        bot.say("? for hint, ??? for answer, options? for options")
         get_trivia(bot)
     elif trigger.group(2) == "off": 
         bot.db.set_nick_value(bot.nick, 'trivia_status', False)
     elif bot.db.get_nick_value(bot.nick, 'trivia_answer'):
-        bot.say("Question: %s" % (bot.db.get_nick_value(bot.nick, 'trivia_question')))
+        bot.say(bot.db.get_nick_value(bot.nick, 'trivia_question'))
         bot.say("Answer: %s" % (re.sub('[a-zA-Z0-9]', '*', (bot.db.get_nick_value(bot.nick, 'trivia_answer')))))
     else: get_trivia(bot)
 
@@ -47,24 +51,31 @@ def trivia_answer(bot, trigger):
     answer = bot.db.get_nick_value(bot.nick, 'trivia_answer')
     if answer: answer = answer.lstrip().rstrip().lower()
     if guess: guess = guess.lstrip().rstrip().lower()
-    if guess == "help?": bot.say("? for hint, ??? for answer")
+    if guess == "help?": bot.say("? for hint, ??? for answer, options? for options" )
+    elif guess == "options?": 
+        options = bot.db.get_nick_value(bot.nick, "trivia_options")
+        if not options: bot.say("No options found!")
+        else: bot.say(options)
     elif not answer: bot.say("You need to ask a question!")
     elif not guess: 
         title = bot.db.get_nick_value(bot.nick, 'trivia_title')
         if title: bot.say("Category: %s" % (title))
-        bot.say("Question: %s" % (bot.db.get_nick_value(bot.nick, 'trivia_question')))
+        bot.say(bot.db.get_nick_value(bot.nick, 'trivia_question'))
         bot.say("Answer: %s" % (re.sub('[a-zA-Z0-9]', '*', answer)))
     elif guess == "?":
         hint = ""
         hintscale = bot.db.get_nick_value(bot.nick, 'trivia_hint_scale') - 8
-        for x in answer:
-            if not re.search('[a-zA-Z0-9]', x): hint += x
-            elif random.randint(0,100) >= hintscale:    hint += x
-            else:   hint += "*"
+        if hintscale == 80: hint = re.sub('[a-zA-Z0-9]', '*', (bot.db.get_nick_value(bot.nick, 'trivia_answer')))
+        else:
+            for x in answer:
+                if not re.search('[a-zA-Z0-9]', x): hint += x
+                elif random.randint(0,100) >= hintscale:    hint += x
+                else:   hint += "*"
         bot.say(hint)
         bot.db.set_nick_value(bot.nick, 'trivia_hint_scale', hintscale)
-        hints = bot.db.get_nick_value(trigger.nick, 'trivia_hints')
-        bot.db.set_nick_value(trigger.nick, 'trivia_hints', hints + 1)
+        if hintscale < 80:
+            hints = bot.db.get_nick_value(trigger.nick, 'trivia_hints')
+            bot.db.set_nick_value(trigger.nick, 'trivia_hints', hints + 1)
         if hint == answer:
             bot.say("Hint gave the Answer.")
             bot.db.set_nick_value(bot.nick, 'trivia_answer', None)
@@ -102,19 +113,18 @@ def trivia_score(bot, trigger):
         bot.say("%s has %d points, has had %d wrong answers, has used %d hints, and given up %d times!" % (nick, score, wrong, hints, gives))
 
 def get_trivia(bot):
-    old_answer = bot.db.get_nick_value(bot.nick, 'trivia_answer')
-    if old_answer: bot.say("The previous answer was: %s" % (old_answer))
     source = random.randint(1,2)
-    if source == 1: question, answer, title = trivia_parser()
-    if source == 2: question, answer, title = jeopardy_parser()
+    if source == 1: question, answer, title, hintscale, options = trivia_parser()
+    if source == 2: question, answer, title, hintscale, options = jeopardy_parser()
     bot.db.set_nick_value(bot.nick, 'trivia_question', question)
     bot.db.set_nick_value(bot.nick, 'trivia_answer', answer)
     bot.db.set_nick_value(bot.nick, 'trivia_title', title)
+    bot.db.set_nick_value(bot.nick, 'trivia_hint_scale', hintscale)
+    bot.db.set_nick_value(bot.nick, 'trivia_options', options)
     starred_answer = re.sub('[a-zA-Z0-9]', '*', answer)
     if title: bot.say("Category: %s" % (title))
-    bot.say("Question: %s" % (question))
-    bot.say("Answer: %s" % (starred_answer))
-    bot.db.set_nick_value(bot.nick, 'trivia_hint_scale', 80)
+    bot.say(question)
+    if source == 2: bot.say("Answer: %s" % (starred_answer))
 
 def check_values(bot, nick):
     if not bot.db.get_nick_value(nick, 'trivia_score'): bot.db.set_nick_value(nick, 'trivia_score', 0)
@@ -128,13 +138,18 @@ def trivia_parser():
     data = response.json()
     g_question = data["results"][0]
     answer = unescape(g_question["correct_answer"]).lower()
+    options = [g_question["correct_answer"],] + g_question["incorrect_answers"]
+    shuffle(options)
+    options = ", ".join(options)
+    options = unescape(options)
     question = unescape(g_question["question"])
-    return question, answer, None
+    return question, answer, None, 88, options
 
 def jeopardy_parser():
     response = requests.get("http://jservice.io/api/random").json()
-    answer = response[0]['answer'].lstrip().rstrip().lower()
     question = response[0]['question']
-    if question == "": jeopardy_parser()
-    title = response[0]['category']['title'].title()
-    return question, answer, title
+    if not question or question == "": jeopardy_parser()
+    else:
+        answer = response[0]['answer'].lstrip().rstrip().lower()
+        title = response[0]['category']['title'].title()
+        return question, answer, title, 80, None
