@@ -91,7 +91,7 @@ def trivia_answer(bot, trigger):
         bot.db.set_nick_value(bot.nick, 'trivia_answer', None)
         score = bot.db.get_nick_value(trigger.nick, 'trivia_score')
         bot.db.set_nick_value(trigger.nick, 'trivia_score', score + 1)
-        bot.say("%s has %d points!" % (trigger.nick, bot.db.get_nick_value(trigger.nick, 'trivia_score')))
+        bot.say("%s has %d points!" % (trigger.nick, score + 1))
         if bot.db.get_nick_value(bot.nick, 'trivia_status'): get_trivia(bot)
     else:
         bot.say("Nope!")
@@ -110,7 +110,7 @@ def trivia_score(bot, trigger):
         wrong = bot.db.get_nick_value(nick, 'trivia_wrong')
         hints = bot.db.get_nick_value(nick, 'trivia_hints')
         gives = bot.db.get_nick_value(nick, 'trivia_gives')
-        bot.say("%s has %d points, has had %d wrong answers, has used %d hints, and given up %d times!" % (nick, score, wrong, hints, gives))
+        bot.say("%s has %d correct answers, has %d wrong answers, has used %d hints, and given up %d times!" % (nick, score, wrong, hints, gives))
 
 def get_trivia(bot):
     source = random.randint(1,2)
@@ -138,6 +138,7 @@ def trivia_parser():
     data = response.json()
     g_question = data["results"][0]
     answer = unescape(g_question["correct_answer"]).lower()
+    answer = answer.replace('<i>', '').replace('</i>', '').replace('\\', '')
     options = [g_question["correct_answer"],] + g_question["incorrect_answers"]
     shuffle(options)
     options = ", ".join(options)
@@ -148,6 +149,8 @@ def trivia_parser():
 def jeopardy_parser():
     response = requests.get("http://jservice.io/api/random").json()
     question = response[0]['question']
+    try: title = response[0]['category']['title'].title()
+    except: title = None
     if not question or question == "": jeopardy_parser()
     else:
         answer = response[0]['answer'].lstrip().rstrip().lower()
